@@ -7,10 +7,11 @@ const profileRoutes = require('./routes/profile');
 const bloggerRoutes = require('./routes/blogger');
 const adminRoutes = require('./routes/Admin');
 const authenticateUser = require('./middleware/authenticateUser'); 
+const path = require('path');
 const app = express();
 
 
-
+app.use(cors());
 mongoose.connect('mongodb+srv://Techabari:Techabari2023@cluster0.myxx4gd.mongodb.net/?retryWrites=true&w=majority', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -35,7 +36,7 @@ app.use(
   })
 );
 
-
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -45,7 +46,7 @@ app.get('/protected-route', authenticateUser, (req, res) => {
 });
 
 
-// Routes
+// Routes link
 app.use('/api/auth', userRoutes);
 app.use('/profile', profileRoutes);
 app.use('/api/blogger', bloggerRoutes);

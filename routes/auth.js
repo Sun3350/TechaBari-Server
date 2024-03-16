@@ -183,17 +183,12 @@ router.get('/renew-token', verifyToken, (req, res) => {
 
 router.get('/user-Info', authenticateUser, async (req, res) => {
   try {
-    // The user ID is available in req.user.userId from the authenticateToken middleware
     const userId = req.user.userId;
-
-    // Fetch user information from MongoDB based on the user ID
     const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    // Return the user information
     res.json({ username: user.username, isAdmin: user.isAdmin });
   } catch (error) {
     console.error('Error fetching user information:', error);

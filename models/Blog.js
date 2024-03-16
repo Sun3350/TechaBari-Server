@@ -1,14 +1,33 @@
 const mongoose = require('mongoose');
 
 const blogSchema = new mongoose.Schema({
-  title: String,
-  content: String,
-  category: String,
-  author: String, 
-  image: String,// Change the type to String to store the username
+  title: {
+    type: String,
+    required: true,
+  },
+  content: {
+    type: String,
+    required: true,
+  },
+  category: {
+    type: String,
+    required: true,
+  },
+  author: {
+    type: String,  
+    required: true,
+  },
+  images: [{
+    type: String, 
+    required: true,
+  }], 
   isPublished: {
     type: Boolean,
     default: false,
+  },
+  publishedAt: {
+    type: Date,
+    default: null, // Set to null initially, and it will be updated when the post is published
   },
 });
 

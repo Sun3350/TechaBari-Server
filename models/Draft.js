@@ -14,7 +14,7 @@ const draftSchema = new mongoose.Schema({
     required: true,
   },
   author: {
-    type: String,  // Assuming author is a username or user ID
+    type: String,  
     required: true,
   },
   images: [{

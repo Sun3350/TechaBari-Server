@@ -9,7 +9,7 @@ const user =require('../models/User')
 const path = require('path');
 const multer = require('multer');
 const Draft = require('../models/Draft')
-
+const Notification = require('../models/Notification')
 
 //create post
 const storage = multer.diskStorage({
@@ -43,10 +43,12 @@ router.post('/create', authenticateUser, upload.array('images', 5),
       });
 
       if (Array.isArray(req.files) && req.files.length > 0) {
-        newPost.images = req.files.map(file => path.join('uploads', file.filename));
+        newPost.images = req.files.map(file => path.join(file.filename));
       }
 
       await newPost.save();
+
+      sendNotificationToAdmin(newPost);
 
       res.status(201).json({ message: 'Post created successfully' });
     } catch (error) {
@@ -56,6 +58,18 @@ router.post('/create', authenticateUser, upload.array('images', 5),
   }
 );
 
+async function sendNotificationToAdmin(blog) {
+  try {
+    // Save the notification to the database
+    const notification = await Notification.create({ 
+      message: `New blog submitted by ${blog.author}: ${blog.title}`,
+      blogId: blog._id
+    });
+    console.log('Notification saved:', notification);
+  } catch (error) {
+    console.error('Error saving notification:', error);
+  }
+}
 
 // Update a blog
 router.put('/update/posts/:postId', authenticateUser, upload.array('image'), async (req, res) => {
@@ -233,6 +247,28 @@ router.get('/admin/posts/:postId', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+//get post by categories
+
+router.get('/categories-blogs', async (req, res) => {
+  try {
+    const { category } = req.query;
+    let blogs;
+
+    if (category) {
+      // If category parameter is provided, filter blogs by category
+      blogs = await Blog.find({ category });
+    } else {
+      // If no category parameter provided, return all blogs
+      blogs = await Blog.find();
+    }
+
+    res.status(200).json(blogs);
+  } catch (error) {
+    console.error('Error fetching blogs:', error);
+    res.status(500).json({ error: 'An error occurred while fetching blogs' });
+  }
+})
 
 
 //Get Post For Single Page 

@@ -6,6 +6,7 @@ const userRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
 const bloggerRoutes = require('./routes/blogger');
 const adminRoutes = require('./routes/Admin');
+const notificationRoutes = require('./routes/notification')
 const authenticateUser = require('./middleware/authenticateUser'); 
 const path = require('path');
 const app = express();
@@ -51,6 +52,7 @@ app.use('/api/auth', userRoutes);
 app.use('/profile', profileRoutes);
 app.use('/api/blogger', bloggerRoutes);
 app.use('/api/admin', adminRoutes)
+app.use('/api/notification', notificationRoutes)
 
 
 const PORT = process.env.PORT || 5000;

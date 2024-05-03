@@ -17,19 +17,22 @@ router.get('/notifications', async (req, res) => {
 
   
   
-  router.put('/notifications/:postId', async (req, res) => {
-    try {
-      // Find the notification by ID and mark it as read
-      const postId = req.params.postId
-      await Notification.findByIdAndUpdate( {_id: postId, read: true }); // Update the read status
-  
-      res.status(200).json({ message: 'Notification marked as read' });
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      res.status(500).json({ error: 'An error occurred while marking notification as read' });
+router.put('/read-notifications/:postId', async (req, res) => {
+  try {
+    const postId = req.params.postId;
+    const notification = await Notification.findOneAndUpdate({ blogId: postId }, { read: true }, { new: true });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
     }
-  });   
-  
+
+    res.status(200).json({ message: 'Notification marked as read', notification });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'An error occurred while marking notification as read' });
+  }
+});
+
   router.delete('/deleteNotifications/:PostId', async (req, res) => {
     try {
       // Find the notification by ID and delete it

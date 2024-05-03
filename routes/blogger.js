@@ -402,6 +402,49 @@ router.get('/drafts/:draftId', authenticateUser, async (req, res) => {
   }
 });
 
+router.get('/search-admin', async (req, res) => {
+  const { query } = req.query;
+
+  try {
+    // Perform regex search on 'title' field
+    const searchResults = await Blog.find({ title: { $regex: new RegExp(query, 'i') } });
+    res.json(searchResults);
+  } catch (error) {
+    console.error('Error searching blogs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/search', authenticateUser, async (req, res) => {
+  const { query } = req.query;
+  const username = req.user.username; // Assuming the user's ID is available in the request object
+
+  try {
+    // Perform regex search on 'title' field for the blogs of the logged-in user
+    const searchResults = await Blog.find({ title: { $regex: new RegExp(query, 'i') }, author: username });
+    console.log('working')
+    res.json(searchResults);
+  } catch (error) {
+    console.error('Error searching blogs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+router.get('/search-main:postId', authenticateUser, async (req, res) => {
+  const { query } = req.query;
+  // Assuming the user's ID is available in the request object
+
+  try {
+    // Perform regex search on 'title' field for the blogs of the logged-in user
+    const searchResults = await Blog.find({ title: { $regex: new RegExp(query, 'i') }, isPublished: true });
+    console.log('working')
+    res.json(searchResults);
+  } catch (error) {
+    console.error('Error searching blogs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 
 router.get('/drafts', authenticateUser, async (req, res) => {
   const username = req.user.username;

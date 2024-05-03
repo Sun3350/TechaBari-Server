@@ -30,5 +30,5 @@ const blogSchema = new mongoose.Schema({
     default: null, // Set to null initially, and it will be updated when the post is published
   },
 });
-
+blogSchema.index({ title: 'text' });
 module.exports = mongoose.model('Blog', blogSchema);

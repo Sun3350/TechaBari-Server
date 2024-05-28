@@ -12,7 +12,7 @@ const authenticateUser = require('./middleware/authenticateUser');
 const path = require('path');
 const app = express();
 
-
+app.get("/", (req, res) => res.send("Express on Vercel"));
 app.use(cors());
 mongoose.connect('mongodb+srv://Techabari:Techabari2023@cluster0.myxx4gd.mongodb.net/?retryWrites=true&w=majority', {
   useNewUrlParser: true,

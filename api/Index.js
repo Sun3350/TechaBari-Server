@@ -30,7 +30,7 @@ db.once('open', () => {
 
 app.use(
   cors({
-    origin: 'http://localhost:3000', 
+    origin: 'http://localhost:3001', 
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization',
   })

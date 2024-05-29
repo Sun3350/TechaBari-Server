@@ -1,17 +1,16 @@
+// api/index.js
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const userRoutes = require('./routes/auth');
-const profileRoutes = require('./routes/profile');
-const bloggerRoutes = require('./routes/blogger');
-
-const adminRoutes = require('./routes/Admin');
-const notificationRoutes = require('./routes/notification')
-const authenticateUser = require('./middleware/authenticateUser'); 
+const userRoutes = require('../routes/auth');
+const profileRoutes = require('../routes/profile');
+const bloggerRoutes = require('../routes/blogger');
+const adminRoutes = require('../routes/Admin');
+const notificationRoutes = require('../routes/notification');
+const authenticateUser = require('../middleware/authenticateUser');
 const path = require('path');
 const app = express();
-
 
 app.use(cors());
 mongoose.connect('mongodb+srv://Techabari:Techabari2023@cluster0.myxx4gd.mongodb.net/?retryWrites=true&w=majority', {
@@ -29,12 +28,11 @@ db.once('open', () => {
   console.log('MongoDB is connected');
 });
 
-
 app.use(
   cors({
     origin: 'http://localhost:3000', 
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', 
-    allowedHeaders: 'Content-Type,Authorization', 
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: 'Content-Type,Authorization',
   })
 );
 
@@ -47,19 +45,19 @@ app.get('/protected-route', authenticateUser, (req, res) => {
   res.json({ message: `Authenticated user: ${username}` });
 });
 
-
 // Routes link
 app.use('/api/auth', userRoutes);
 app.use('/profile', profileRoutes);
 app.use('/api/blogger', bloggerRoutes);
-app.use('/api/admin', adminRoutes)
-app.use('/api/notification', notificationRoutes)
+app.use('/api/admin', adminRoutes);
+app.use('/api/notification', notificationRoutes);
+
+module.exports = app; // Export the app
 
 
-
-const PORT = process.env.PORT || 5000;
+/*const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, (err) => {
   if (err) throw err;
   console.log(`Server is running on port ${PORT}`);
-});
+});*/

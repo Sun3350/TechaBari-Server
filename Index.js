@@ -2,13 +2,13 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const userRoutes = require('../routes/auth');
-const profileRoutes = require('../routes/profile');
-const bloggerRoutes = require('../routes/blogger');
+const userRoutes = require('./routes/auth');
+const profileRoutes = require('./routes/profile');
+const bloggerRoutes = require('./routes/blogger');
 
-const adminRoutes = require('../routes/Admin');
-const notificationRoutes = require('../routes/notification')
-const authenticateUser = require('../middleware/authenticateUser'); 
+const adminRoutes = require('./routes/Admin');
+const notificationRoutes = require('./routes/notification')
+const authenticateUser = require('./middleware/authenticateUser'); 
 const path = require('path');
 const app = express();
 

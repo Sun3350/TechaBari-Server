@@ -4,6 +4,8 @@ const router = express.Router();
 const { check, validationResult } = require('express-validator');
 const Blog = require('../models/Blog'); // Import the Blog model
 const authenticateUser = require('../middleware/authenticateUser'); 
+const cloudinary = require('../middleware/cloudConfiguration');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const posts = [];
 const user =require('../models/User')
 const path = require('path');
@@ -11,20 +13,18 @@ const multer = require('multer');
 const Draft = require('../models/Draft')
 const Notification = require('../models/Notification')
 
-//create post
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads'); 
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'Blog Image',
+    format: async (req, file) => 'jpg', // supports promises as well
+    public_id: (req, file) => Date.now().toString(),
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage: storage });
 
-router.post('/create', authenticateUser, upload.array('images', 5),
+router.post('/create', authenticateUser, upload.single('image'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -33,19 +33,17 @@ router.post('/create', authenticateUser, upload.array('images', 5),
 
     const { title, content, category } = req.body;
     const username = req.user.username;
-
+    const imageUrl = req.file.path;
     try {
       const newPost = new Blog({
         title,
         content,
         category,
         author: username,
+        image: imageUrl
       });
 
-      if (Array.isArray(req.files) && req.files.length > 0) {
-        newPost.images = req.files.map(file => path.join(file.filename));
-      }
-
+    
       await newPost.save();
 
       sendNotificationToAdmin(newPost);
@@ -94,17 +92,14 @@ router.put('/update/posts/:postId', authenticateUser, upload.array('image'), asy
 
 
 //Admin Update Blog
- router.put('/admin/update/posts/:postId', upload.array('image'), async (req, res) => {
+ router.put('/admin/update/posts/:postId', upload.single('image'), async (req, res) => {
   try {
     const postId = req.params.postId;
     const { title, content, category } = req.body;
 
-    const updatedPostData = { title, content, category };
+    const updatedPostData = { title, content, category, image };
 
-    if (Array.isArray(req.files) && req.files.length > 0) {
-      updatedPostData.images = req.files.map(file => `${file.filename}`);
-    }
-
+   
     const updatedPost = await Blog.findByIdAndUpdate(postId, updatedPostData, { new: true });
     
     res.status(200).json({ message: 'Blog post updated successfully', post: updatedPost });
@@ -212,13 +207,16 @@ router.get('/posts/:postId', authenticateUser, async (req, res) => {
     if (!post) {
       return res.status(404).json({ message: 'Post not found or you do not have permission to access it' });
     }
+
     res.status(200).json({
+      
       _id: post._id,
       title: post.title,
       content: post.content,
       category: post.category,
-      images: post.images,  // You may adjust this based on your data model
+      image: post.image,  // You may adjust this based on your data model
     });
+    
   } catch (error) {
     console.error('Error fetching post details:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -240,7 +238,7 @@ router.get('/admin/posts/:postId', async (req, res) => {
       title: post.title,
       content: post.content,
       category: post.category,
-      images: post.images,  // You may adjust this based on your data model
+      image: post.image,  // You may adjust this based on your data model
     });
   } catch (error) {
     console.error('Error fetching post details:', error);
@@ -394,7 +392,7 @@ router.get('/drafts/:draftId', authenticateUser, async (req, res) => {
       title: draft.title,
       content: draft.content,
       category: draft.category,
-      images: draft.images,  // You may adjust this based on your data model
+      image: draft.image,  // You may adjust this based on your data model
     });
   } catch (error) {
     console.error('Error fetching draft details:', error);
@@ -463,7 +461,7 @@ router.get('/drafts', authenticateUser, async (req, res) => {
 router.post(
   '/create-draft',
   authenticateUser,
-  upload.array('images', 5),
+  upload.single('images'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -472,6 +470,7 @@ router.post(
 
     const { title, content, category } = req.body;
     const username = req.user.username;
+    const imageUrl = req.file.path
 
     try {
       const newDraft = new Draft({
@@ -479,13 +478,12 @@ router.post(
         content,
         category,
         author: username,
+        image: imageUrl,
         isDraft: true,
         createdAt: new Date(),
       });
 
-      if (req.files && req.files.length > 0) {
-        newDraft.images = req.files.map((file) => file.path);
-      }
+     
 
       await newDraft.save();
 

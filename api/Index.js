@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const userRoutes = require('../routes/auth');
-const profileRoutes = require('../routes/profile');
+//const profileRoutes = require('../routes/profile');
 const bloggerRoutes = require('../routes/blogger');
 const adminRoutes = require('../routes/Admin');
 const notificationRoutes = require('../routes/notification');
@@ -47,17 +47,16 @@ app.get('/protected-route', authenticateUser, (req, res) => {
 
 // Routes link
 app.use('/api/auth', userRoutes);
-app.use('/profile', profileRoutes);
+//app.use('/profile', profileRoutes);
 app.use('/api/blogger', bloggerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notification', notificationRoutes);
 
 module.exports = app; // Export the app
 
-
-/*const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, (err) => {
   if (err) throw err;
   console.log(`Server is running on port ${PORT}`);
-});*/
+});

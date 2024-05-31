@@ -1,7 +1,7 @@
 // routes/profile.js
 const express = require('express');
 const router = express.Router();
-const upload = require('../middleware/upload'); // Import the upload middleware
+// Import the upload middleware
 const User = require('../models/User');
 
 

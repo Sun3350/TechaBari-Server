@@ -14,18 +14,39 @@ const blogSchema = new mongoose.Schema({
     required: true,
   },
   author: {
-    type: String,  
+    type: String,
     required: true,
   },
-  image: { type: String, required: true }, 
-  isPublished: {
-    type: Boolean,
-    default: false,
+  image: { 
+    type: String, 
+    required: true 
   },
-  publishedAt: {
-    type: Date,
-    default: null, // Set to null initially, and it will be updated when the post is published
+  views: { type: Number, default: 0 }, // Tracks the number of views
+  likes: [{ type: String }], 
+
+  comments: [
+    {
+      user: { type: String }, // No `required: true` (optional)
+      text: { type: String },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
+  isFeatured: { type: Boolean, default: false }, // For admin-selected featured posts
+
+  status: {  
+    type: String,
+    enum: ['pending', 'approved', 'rejected'], // Define allowed states
+    default: 'pending', // Default state is "pending"
   },
+  publishedAt: {  type: Date,
+    default: null, // Will be updated when the post is approved
+  },
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User' 
+  }, // Reference to User model
 });
+
 blogSchema.index({ title: 'text' });
+
 module.exports = mongoose.model('Blog', blogSchema);

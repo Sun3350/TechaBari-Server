@@ -11,14 +11,15 @@ const user =require('../models/User')
 const path = require('path');
 const multer = require('multer');
 const Draft = require('../models/Draft')
-const Notification = require('../models/Notification')
+const Notification = require('../models/Notification');
+const { default: mongoose } = require('mongoose');
 
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'Blog Image',
-    format: async (req, file) => 'jpg', // supports promises as well
-    public_id: (req, file) => Date.now().toString(),
+    format: async (req, file) => 'jpg', // Always stores as JPG
+    public_id: (req, file) => Date.now().toString(), // Unique filename
   },
 });
 
@@ -32,18 +33,18 @@ router.post('/create', authenticateUser, upload.single('image'),
     }
 
     const { title, content, category } = req.body;
-    const username = req.user.username;
+    const username = req.user.username; // Correctly extract user ID
     const imageUrl = req.file.path;
     try {
       const newPost = new Blog({
         title,
         content,
         category,
-        author: username,
-        image: imageUrl
+        author: username, // Use the correct field from req.user
+        image: imageUrl,
+        userId: req.user.id, // Reference the user in the database
       });
 
-    
       await newPost.save();
 
       sendNotificationToAdmin(newPost);
@@ -60,7 +61,8 @@ async function sendNotificationToAdmin(blog) {
   try {
     // Save the notification to the database
     const notification = await Notification.create({ 
-      message: `New blog submitted by ${blog.author}: ${blog.title}`,
+      message: `New Post submitted by ${blog.author}`,
+      title:`${blog.title}`,
       blogId: blog._id
     });
     console.log('Notification saved:', notification);
@@ -70,50 +72,71 @@ async function sendNotificationToAdmin(blog) {
 }
 
 // Update a blog
+
 router.put('/update/posts/:postId', authenticateUser, upload.array('image'), async (req, res) => {
   try {
     const postId = req.params.postId;
     const { title, content, category } = req.body;
 
-    const updatedPostData = { title, content, category };
-
-    if (Array.isArray(req.files) && req.files.length > 0) {
-      updatedPostData.images = req.files.map(file => `uploads/${file.filename}`);
+    // Fetch the existing post
+    const existingPost = await Blog.findById(postId);
+    if (!existingPost) {
+      return res.status(404).json({ message: 'Post not found' });
     }
 
+    // Prepare updated post data
+    const updatedPostData = { title, content, category };
+
+    // ✅ Handle Image Uploads
+    if (req.files && req.files.length > 0) {
+      updatedPostData.images = req.files.map(file => file.path); // Cloudinary URLs
+    } else {
+      updatedPostData.images = existingPost.images; // Keep old images if none uploaded
+    }
+
+    // ✅ Update Post in DB
     const updatedPost = await Blog.findByIdAndUpdate(postId, updatedPostData, { new: true });
-    
+
     res.status(200).json({ message: 'Blog post updated successfully', post: updatedPost });
   } catch (error) {
     console.error('Error updating blog post:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
-
 //Admin Update Blog
- router.put('/admin/update/posts/:postId', upload.single('image'), async (req, res) => {
+
+router.put('/admin/update/posts/:postId', upload.single('image'), async (req, res) => {
   try {
-    const postId = req.params.postId;
+    const { postId } = req.params;
     const { title, content, category } = req.body;
 
-    const updatedPostData = { title, content, category, image };
+    // Find existing post
+    const post = await Blog.findById(postId);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
 
-   
-    const updatedPost = await Blog.findByIdAndUpdate(postId, updatedPostData, { new: true });
-    
-    res.status(200).json({ message: 'Blog post updated successfully', post: updatedPost });
+    // Update fields
+    post.title = title;
+    post.content = content;
+    post.category = category;
+
+    // If an image was uploaded, update the image field
+    if (req.file) {
+      post.image = `/uploads/${req.file.filename}`;
+    }
+
+    await post.save();
+    res.status(200).json({ message: 'Post updated successfully', post });
   } catch (error) {
-    console.error('Error updating blog post:', error);
+    console.error('Error updating post:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
 //Get All Unpublished Blog
+
 router.get('/unpublished-blogs', async (req, res) => {
   try {
     // Find all blog posts with isPublished set to false
-    const unpublishedBlogPosts = await Blog.find({ isPublished: false })
+    const unpublishedBlogPosts = await Blog.find({ status: "pending" })
       .populate('author', 'username');
     res.status(200).json(unpublishedBlogPosts);
   } catch (error) {
@@ -121,9 +144,11 @@ router.get('/unpublished-blogs', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+//get all post with isPublish true
+
 router.get('/published-blogs', async (req, res) => {
   try {
-    // Find all blog posts with isPublished set to false
     const unpublishedBlogPosts = await Blog.find({ isPublished: true })
       .populate('author', 'username');
     res.status(200).json(unpublishedBlogPosts);
@@ -134,10 +159,11 @@ router.get('/published-blogs', async (req, res) => {
 });
 
 //Get the User Unpublished Blog
+
 router.get('/unpublished-blogs/:postId', async (req, res) => {
   try {
     const postId = req.params.postId;
-    const unpublishedBlogPost = await Blog.findOne({ _id: postId, isPublished: false })
+    const unpublishedBlogPost = await Blog.findOne({ _id: postId, status: "pending" })
       .populate('author', 'username');
 
     if (!unpublishedBlogPost) {
@@ -168,15 +194,43 @@ router.get('/published-blogs/:postId', async (req, res) => {
 });
 
 //update the defaul value of isPublish to true
-router.put('/update-publish-blog/:postId', async (req, res) => {
- 
+router.put('/update-status/:postId', async (req, res) => {
+  const { postId } = req.params;
+  const { status } = req.body; // Status will be "pending", "approved", or "rejected"
+
+  // Validate the status
+  const validStatuses = ['pending', 'approved', 'rejected'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: 'Invalid status value' });
+  }
+
+  // Validate ObjectId
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid postId' });
+  }
+
   try {
-    const postId = req.params.postId;
-    const currentDate = new Date();
-    const updatedBlog = await Blog.findByIdAndUpdate( {_id: postId}, { isPublished: true, publishedAt: currentDate }, { new: true });
-    res.status(200).json(updatedBlog);
+    const updateData = { status };
+    if (status === 'approved') {
+      updateData.publishedAt = new Date(); // Update publishedAt if approved
+    } else {
+      updateData.publishedAt = null; // Reset publishedAt for other statuses
+    }
+
+    const updatedBlog = await Blog.findByIdAndUpdate(
+      postId,
+      updateData,
+      { new: true }
+    );
+
+    // Check if the blog post exists
+    if (!updatedBlog) {
+      return res.status(404).json({ message: 'Blog post not found' });
+    }
+
+    res.status(200).json({ message: `Blog status updated to "${status}"`, blog: updatedBlog });
   } catch (error) {
-    console.error('Error updating blog post:', error);
+    console.error(`Error updating blog post status with ID ${postId}:`, error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -184,10 +238,11 @@ router.put('/update-publish-blog/:postId', async (req, res) => {
    
 //Get All Post By User 
 
-router.get('/posts-by-user/:username', async (req, res) => {
-  const { username } = req.params;
+router.get('/posts-by-user', authenticateUser, async (req, res) => {
+  const userId = req.user.id;  // Get the user ID from the authenticated user
+
   try {
-    const blogPosts = await Blog.find({ author: username });
+    const blogPosts = await Blog.find({ userId });  // Query Blog model with the 'userId' from the token
     res.status(200).json(blogPosts);
   } catch (error) {
     console.error('Error fetching user blog posts:', error);
@@ -195,33 +250,76 @@ router.get('/posts-by-user/:username', async (req, res) => {
   }
 });
 
+//
+//const backfillUserIds = async () => {
+//  try {
+//    const users = await user.find(); // Fetch all users
+//    const blogPosts = await Blog.find(); // Fetch all blog posts
+//
+//    for (const post of blogPosts) {
+//      const user = users.find((u) => u.username === post.author);
+//
+//      if (user) {
+//        post.userId = user._id; // Assign the userId
+//        try {
+//          await post.save({ validateModifiedOnly: true }); // Save only modified fields
+//          console.log(`Successfully updated post ${post._id} with userId ${user._id}`);
+//        } catch (saveError) {
+//          console.error(`Failed to update post ${post._id}:`, saveError);
+//        }
+//      } else {
+//        console.log(`No user found for post: ${post._id}, authorName: ${post.authorName}`);
+//      }
+//    }
+//  } catch (error) {
+//    console.error('Error during backfill:', error);
+//  }
+//};
+//
+//backfillUserIds();
+
 
 //Get post to Edit
+
+
 router.get('/posts/:postId', authenticateUser, async (req, res) => {
   const { postId } = req.params;
-  const username = req.user.username; 
+  const username = req.user.username;
+
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid postId format' });
+  }
+
+  console.log('Fetching post:', { postId, username });
 
   try {
-    const post = await Blog.findOne({ _id: postId, author: username });
+    // Log database query before executing it for debugging
+    console.log('Database query:', { _id: postId, author: username });
+
+    const post = await Blog.findOne({
+      _id: postId,
+      author: username, // Use direct comparison
+    });
 
     if (!post) {
-      return res.status(404).json({ message: 'Post not found or you do not have permission to access it' });
+      // Log more details if post is not found
+      console.log('No post found for:', { postId, username });
+      return res.status(404).json({ message: 'Post not found or unauthorized user' });
     }
 
     res.status(200).json({
-      
       _id: post._id,
       title: post.title,
       content: post.content,
       category: post.category,
-      image: post.image,  // You may adjust this based on your data model
+      image: post.image,
     });
-    
   } catch (error) {
-    console.error('Error fetching post details:', error);
+    console.error('Error fetching post details:', error.message);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
 
 //Get Post FOr Review In Admin
 router.get('/admin/posts/:postId', async (req, res) => {
@@ -310,6 +408,7 @@ router.delete('/delete/posts/:postId', authenticateUser, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
 router.delete('/admin-delete/posts/:postId', async (req, res) => {
   const { postId } = req.params;
  
@@ -468,7 +567,7 @@ router.post(
       return res.status(422).json({ errors: errors.array() });
     }
 
-    const { title, content, category } = req.body;
+    const { title, content, category } = req.body; 
     const username = req.user.username;
     const imageUrl = req.file.path
 
@@ -517,6 +616,10 @@ router.delete('/delete-drafts/:draftId', authenticateUser, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+
+
+
 
 
 module.exports = router;

@@ -1,27 +1,25 @@
 const jwt = require('jsonwebtoken');
-require('dotenv').config()
+require('dotenv').config();
 const secretKey = process.env.SECRET_KEY;
 
 function authenticateUser(req, res, next) {
-  // Extract the JWT token from the "Authorization" header
-  const authHeader = req.header('Authorization'); // Assuming the token is sent in the header
+  const authHeader = req.header('Authorization');
   if (!authHeader) {
-    return res.status(401).json({ message: 'Authentication failed' });
+    return res.status(401).json({ message: 'Authentication failed: No token provided' });
   }
-  
-  const token = authHeader.split(' ')[1]; // Split and take the second part (the token)
 
-  // Verify and decode the token
+  const token = authHeader.split(' ')[1]; // Extract the token
   try {
-    const decoded = jwt.verify(token, secretKey);
-    req.user = decoded; // Add user information to the request object
-    next(); // Proceed to the next middleware or route
+    const decoded = jwt.verify(token, secretKey); // Verify and decode the token
+    req.user = {
+      id: decoded.id, // Attach the user ID
+      username: decoded.username, // Attach the username
+    };
+    console.log('Authenticated User:', req.user); // Log user details for debugging
+    next(); // Proceed to the next middleware or route handler
   } catch (error) {
-    const errorMessage = 'Authentication failed. Error: ' + error.message;
-    const stackTrace = 'Stack Trace: ' + error.stack;
-    console.error(errorMessage);
-    console.error(stackTrace);
-    res.status(401).json({ message: 'Authentication failed' });
+    console.error('Authentication failed:', error.message); // Log the error
+    res.status(401).json({ message: 'Authentication failed: Invalid token' }); // Return error response
   }
 }
 

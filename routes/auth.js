@@ -11,11 +11,6 @@ require('dotenv').config()
 const secretKey = process.env.SECRET_KEY;
 
 
-
-// JWT Middleware
-
-
-// Routes
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
 
@@ -53,16 +48,15 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (isMatch) {
-      
+      // Use 'id' instead of 'userId'
       const payload = {
-        userId: user._id,
+        id: user._id,  // Changed from 'userId' to 'id'
         username: user.username,
         isAdmin: user.isAdmin,
       };
       const token = jwt.sign(payload, secretKey);
-      res.json({ token , user: { username: user.username, isAdmin: user.isAdmin } });
-      console.log(token )
-      
+      res.json({ token, user: { username: user.username, isAdmin: user.isAdmin } });
+      console.log(token);
     } else {
       res.status(401).json({ message: 'Authentication failed' });
     }
@@ -71,7 +65,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
 
 // Admin login route
 router.post('/admin-login', async (req, res) => {
@@ -91,15 +84,19 @@ router.post('/admin-login', async (req, res) => {
 
     // Check if the user is an admin
     if (!user.isAdmin) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'Access denied' }); 
     }
 
-    res.status(200).json({ message: 'Admin login successful' });
+    // Create the JWT token after validation
+    const token = jwt.sign({ username: user.username, isAdmin: user.isAdmin }, secretKey, { expiresIn: '1h' });
+
+    // Send the token and user info in a single response
+    res.status(200).json({ message: 'Admin login successful', token, user: { username: user.username, isAdmin: user.isAdmin } });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
-
 
 
 
@@ -195,5 +192,33 @@ router.get('/user-Info', authenticateUser, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+
+
+// Endpoint to check if a user is an admin
+
+router.get('/user/isAdmin', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1]; // Extract token
+    if (!token) {
+      return res.status(403).json({ message: 'No token provided' });
+    }
+
+    const decodedToken = jwt.verify(token, secretKey); // Verify token
+    const userId = decodedToken.id; // Use 'id' instead of 'userId'
+
+    const user = await User.findById(userId); // Fetch user from DB
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    return res.status(200).json({ isAdmin: user.isAdmin });
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+
 
 module.exports = router;

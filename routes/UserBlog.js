@@ -52,8 +52,13 @@ router.get('/latest-blogs', async (req, res) => {
     }
 
     const limit = parseInt(req.query.limit, 10) || 2;
-    const blogs = await Blog.find({ category: { $in: cachedCategories } })
-      .sort({ createdAt: -1 })
+
+    // Fetch only blogs that are approved and match cached categories
+    const blogs = await Blog.find({ 
+        category: { $in: cachedCategories }, 
+        status: "approved"  // ✅ Only fetch approved blogs
+      })
+      .sort({ publishedAt: -1 })  // ✅ Sort by `publishedAt` (newest first)
       .limit(limit);
 
     res.status(200).json({ categories: cachedCategories, blogs });
@@ -63,7 +68,8 @@ router.get('/latest-blogs', async (req, res) => {
   }
 });
 
-// Endpoint to feature/unfeature a post
+
+// Endpoint to feature/unfeature a post 
 router.put('/posts/:id/feature', validateObjectId, async (req, res) => {
   const { id } = req.params;
   const { isFeatured } = req.body;
@@ -125,25 +131,34 @@ router.post("/posts/:id/like", async (req, res) => {
     const post = await Blog.findById(postId);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    const hasLiked = post.likes.includes(email);
+    // Ensure post has a likesCount field
+    if (!post.likesCount) post.likesCount = 0;
+    
+    // Track user emails separately
+    if (!post.likedUsers) post.likedUsers = [];
+
+    const hasLiked = post.likedUsers.includes(email);
 
     if (hasLiked) {
       // Unlike the post
-      post.likes = post.likes.filter((userEmail) => userEmail !== email);
+      post.likedUsers = post.likedUsers.filter(userEmail => userEmail !== email);
+      post.likesCount -= 1;
     } else {
       // Like the post
-      post.likes.push(email);
+      post.likedUsers.push(email);
+      post.likesCount += 1;
     }
-
+   
     await post.save();
     res.json({ 
       message: hasLiked ? "Post unliked" : "Post liked",
-      likesCount: post.likes.length, // ✅ Only return the number of likes
+      likesCount: post.likesCount, // ✅ Return number of likes
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
 });
+
 
 
 
@@ -188,6 +203,26 @@ router.post('/posts/:id/comment', async (req, res) => {
     res.status(500).json({ error: 'Error adding comment' });
   }
 });
+//fetch comment 
+router.get("/posts/:id/comments", async (req, res) => {
+  try {
+    const post = await Blog.findById(req.params.id).populate("comments");
+    
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+
+    res.json({
+      comments: post.comments,
+      totalComments: post.comments.length, 
+    });
+  } catch (err) {
+    console.error("Error fetching comments:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
  //endpoint toget Post details 
 
@@ -279,6 +314,74 @@ router.get('/verify', async (req, res) => {
   console.error('Error while saving subscriber:', error);
   res.status(500).json({ error: 'Server error. Please try again later.' });
 }
+});
+
+//et blog base on category 
+
+router.get("/category", async (req, res) => {
+  try {
+    const { category } = req.query;
+    if (!category) return res.status(400).json({ message: "Category is required" });
+
+    // Find only blogs that match the category and have status "approved"
+    const blogs = await Blog.find({ 
+      category: new RegExp(`^${category}$`, "i"), // Case-insensitive search
+      status: "approved"   
+    });
+   
+    res.json(blogs); 
+  } catch (error) {
+    console.error("Error fetching category blogs:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get('/search', async (req, res) => {
+  try {
+    
+    const { q, category, sort } = req.query;
+
+    // Build the filter object for Mongoose
+    const filter = {};
+
+    if (q) {
+      // Search in title and content using a case-insensitive regex
+      filter.$or = [
+        { title: { $regex: q, $options: 'i' } },
+        { content: { $regex: q, $options: 'i' } }
+      ];
+    }
+
+    if (category) {
+      // Assume blog category is stored in the "cat" field.
+      filter.category = category;
+    }
+
+    // Determine sorting options
+    let sortOption = {};
+    if (sort) {
+      if (sort === 'mostRecent') {
+        sortOption.createdAt = -1; // descending order (newest first)
+      } else if (sort === 'oldest') {
+        sortOption.createdAt = 1; // ascending order
+      } else if (sort === 'mostViewed') {
+        sortOption.views = -1; // descending order by views
+      } else if (sort === 'leastViewed') {
+        sortOption.views = 1; // ascending order by views
+      }
+    } else {
+      // Default sorting: most recent
+      sortOption.createdAt = -1;
+    }
+
+    // Query the database with the filter and sorting options
+    const blogs = await Blog.find(filter).sort(sortOption);
+    
+    res.json(blogs);
+  } catch (error) {
+    console.error('Error fetching blogs:', error);
+    res.status(500).json({ message: 'Server error fetching blogs.' });
+  }
 });
 
 

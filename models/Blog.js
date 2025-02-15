@@ -5,6 +5,10 @@ const blogSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  imageDesc: {
+    type: String,
+    required: true,
+  },
   content: {
     type: String,
     required: true,
@@ -22,8 +26,8 @@ const blogSchema = new mongoose.Schema({
     required: true 
   },
   views: { type: Number, default: 0 }, // Tracks the number of views
-  likes: [{ type: String }], 
-
+  likesCount: { type: Number, default: 0 }, // ✅ Store like count instead of emails
+  likedUsers: { type: [String], default: [] } ,
   comments: [
     {
       user: { type: String }, // No `required: true` (optional)
@@ -34,7 +38,7 @@ const blogSchema = new mongoose.Schema({
   isFeatured: { type: Boolean, default: false }, // For admin-selected featured posts
 
   status: {  
-    type: String,
+    type: String,   
     enum: ['pending', 'approved', 'rejected'], // Define allowed states
     default: 'pending', // Default state is "pending"
   },

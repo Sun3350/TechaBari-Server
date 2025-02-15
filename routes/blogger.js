@@ -6,9 +6,6 @@ const Blog = require('../models/Blog'); // Import the Blog model
 const authenticateUser = require('../middleware/authenticateUser'); 
 const cloudinary = require('../middleware/cloudConfiguration');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const posts = [];
-const user =require('../models/User')
-const path = require('path');
 const multer = require('multer');
 const Draft = require('../models/Draft')
 const Notification = require('../models/Notification');
@@ -73,28 +70,27 @@ async function sendNotificationToAdmin(blog) {
 
 // Update a blog
 
-router.put('/update/posts/:postId', authenticateUser, upload.array('image'), async (req, res) => {
+router.put('/update/posts/:postId', authenticateUser, upload.single('image'), async (req, res) => {
   try {
     const postId = req.params.postId;
     const { title, content, category } = req.body;
 
-    // Fetch the existing post
     const existingPost = await Blog.findById(postId);
     if (!existingPost) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Prepare updated post data
     const updatedPostData = { title, content, category };
 
-    // ✅ Handle Image Uploads
-    if (req.files && req.files.length > 0) {
-      updatedPostData.images = req.files.map(file => file.path); // Cloudinary URLs
-    } else {
-      updatedPostData.images = existingPost.images; // Keep old images if none uploaded
+    // ✅ Delete old image from Cloudinary before updating
+    if (req.file) {
+      if (existingPost.image) {
+        const publicId = existingPost.image.split('/').pop().split('.')[0]; // Extract public_id
+        await cloudinary.uploader.destroy(publicId);
+      }
+      updatedPostData.image = req.file.path; // Update new image
     }
 
-    // ✅ Update Post in DB
     const updatedPost = await Blog.findByIdAndUpdate(postId, updatedPostData, { new: true });
 
     res.status(200).json({ message: 'Blog post updated successfully', post: updatedPost });
@@ -103,6 +99,7 @@ router.put('/update/posts/:postId', authenticateUser, upload.array('image'), asy
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+
 //Admin Update Blog
 
 router.put('/admin/update/posts/:postId', upload.single('image'), async (req, res) => {
@@ -119,9 +116,14 @@ router.put('/admin/update/posts/:postId', upload.single('image'), async (req, re
     post.content = content;
     post.category = category;
 
-    // If an image was uploaded, update the image field
+    // ✅ Keep the old image if no new one is uploaded
     if (req.file) {
-      post.image = `/uploads/${req.file.filename}`;
+      // Delete old Cloudinary image if it exists
+      if (post.image) {
+        const publicId = post.image.split('/').pop().split('.')[0]; // Extract public_id from Cloudinary URL
+        await cloudinary.uploader.destroy(publicId);
+      }
+      post.image = req.file.path; // ✅ Save new Cloudinary image URL
     }
 
     await post.save();
@@ -131,8 +133,9 @@ router.put('/admin/update/posts/:postId', upload.single('image'), async (req, re
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-//Get All Unpublished Blog
 
+//get all unpublisged blog
+    
 router.get('/unpublished-blogs', async (req, res) => {
   try {
     // Find all blog posts with isPublished set to false
@@ -149,9 +152,9 @@ router.get('/unpublished-blogs', async (req, res) => {
 
 router.get('/published-blogs', async (req, res) => {
   try {
-    const unpublishedBlogPosts = await Blog.find({ isPublished: true })
+    const unpublishedBlogPosts = await Blog.find({ status: 'approved' })
       .populate('author', 'username');
-    res.status(200).json(unpublishedBlogPosts);
+    res.status(200).json(unpublishedBlogPosts);  
   } catch (error) {
     console.error('Error fetching unpublished blog posts:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -251,37 +254,33 @@ router.get('/posts-by-user', authenticateUser, async (req, res) => {
 });
 
 //
-//const backfillUserIds = async () => {
+//const backfillImageDesc = async () => {
 //  try {
-//    const users = await user.find(); // Fetch all users
 //    const blogPosts = await Blog.find(); // Fetch all blog posts
 //
 //    for (const post of blogPosts) {
-//      const user = users.find((u) => u.username === post.author);
+//      // Assign the new imageDesc field
+//      post.imageDesc = "Work of art from the Nigeria Museum, 1953. Acquired from the slave trade.";
 //
-//      if (user) {
-//        post.userId = user._id; // Assign the userId
-//        try {
-//          await post.save({ validateModifiedOnly: true }); // Save only modified fields
-//          console.log(`Successfully updated post ${post._id} with userId ${user._id}`);
-//        } catch (saveError) {
-//          console.error(`Failed to update post ${post._id}:`, saveError);
-//        }
-//      } else {
-//        console.log(`No user found for post: ${post._id}, authorName: ${post.authorName}`);
+//      try {
+//        await post.save({ validateModifiedOnly: true }); // Save only modified fields
+//        console.log(`Successfully updated post ${post._id} with imageDesc.`);
+//      } catch (saveError) {
+//        console.error(`Failed to update post ${post._id}:`, saveError);
 //      }
 //    }
 //  } catch (error) {
-//    console.error('Error during backfill:', error);
+//    console.error("Error during backfill:", error);
 //  }
 //};
 //
-//backfillUserIds();
+//// Call the function
+//backfillImageDesc();
 
 
 //Get post to Edit
 
-
+   
 router.get('/posts/:postId', authenticateUser, async (req, res) => {
   const { postId } = req.params;
   const username = req.user.username;
@@ -306,7 +305,7 @@ router.get('/posts/:postId', authenticateUser, async (req, res) => {
       console.log('No post found for:', { postId, username });
       return res.status(404).json({ message: 'Post not found or unauthorized user' });
     }
-
+   
     res.status(200).json({
       _id: post._id,
       title: post.title,
